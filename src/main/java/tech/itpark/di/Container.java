@@ -2,6 +2,7 @@ package tech.itpark.di;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Parameter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -30,162 +31,75 @@ public class Container {
         values.put(name, value);
     }
 
-    public void wire() {
+    public void wire() throws IllegalAccessException, InvocationTargetException, InstantiationException {
         HashSet<Class<?>> todo = new HashSet<>(definitions);
-        if (todo.size() == 0) {
+        if (todo.isEmpty()) {
             return;
         }
 
-        // -> .. -> .. -> .. ->
-        final var firstGeneration = todo.stream() // lazy
-                .map(o -> o.getDeclaredConstructors()[0])
-                .filter(o -> o.getParameterCount() == 0 || allParameterInValues(o))
-                .map(o -> {
-                    try {
-                        o.setAccessible(true);
-                        List<Object> params = Arrays.stream(o.getParameters())
-                                .map(p -> Optional.ofNullable(objects.get(p.getType()))
-                                        .or(() -> Optional.ofNullable(values.get(
-                                                // TODO: NPE
-                                                p.getAnnotation(Inject.class).value() // arg0
-                                        )))
-                                        .orElseThrow(() -> new UnmetDependenciesException(p.getName()))
-                                )
-                                .collect(Collectors.toList());
-                        return o.newInstance(params.toArray());
-                    } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-                        e.printStackTrace();
-                        throw new ObjectInstantiationException(e); // <- e //
-                    }
-                })
-                .collect(Collectors.toMap(o -> o.getClass(), o -> o));
-            objects.putAll(firstGeneration);
+        while (!todo.isEmpty()) {
+            final int todoBeginStageSize = todo.size();
 
-        // TODO: clean code
-        firstGeneration.entrySet().stream()
-                .map(o -> {
-                    final var interfaces = o.getKey().getInterfaces();
-                    final var value = o.getValue();
-                    final var ifaces = new HashMap<Class<?>, Object>();
-                    for (Class<?> cls : interfaces) {
-                        ifaces.put(cls, value);
-                    }
-                    return ifaces;
-                }).forEach(o -> {
-                    objects.putAll(o);
-        });
+            final Iterator<Class<?>> iterator = todo.iterator();
+            while (iterator.hasNext()) {
+                final Class<?> clz = iterator.next();
+                final Constructor<?> declaredConstructor = clz.getDeclaredConstructors()[0];
+                boolean allParameterAlreadyInitializedOr0 = allParameterAlreadyInitializedOr0(declaredConstructor);
 
-        todo.removeAll(firstGeneration.keySet());
-        if (todo.size() == 0) {
-            return;
+                if (allParameterAlreadyInitializedOr0) {
+                    Set<Object> filledConstructorParameters = fillConstructorParametersWithArguments(declaredConstructor);
+                    fillObjectsMapWithClassAndInterfaces(clz, declaredConstructor.newInstance(filledConstructorParameters.toArray()));
+                    iterator.remove();
+                }
+            }
+
+            if (todoBeginStageSize == todo.size()) {
+                throw new UnmetDependenciesException(todo.toString());
+            }
         }
-
-        if (firstGeneration.size() == 0) {
-            // sad path
-            String unmet = todo.stream()
-                    .map(o -> o.getName())
-                    .collect(Collectors.joining(", "));
-            throw new UnmetDependenciesException(unmet);
-        }
-
-        // Map<Class<?>, Object> definitions
-        // definitions.keySet() -> key.getInterfaces() <- search
-        // TODO: one interface multiple times -> Oops
-        final var secondGeneration = todo.stream() // lazy
-                .map(o -> o.getDeclaredConstructors()[0])
-                .filter(o -> {
-                            final var parameters = new HashSet<>(Arrays.asList(o.getParameters()));
-                            parameters.removeIf(p -> objects.containsKey(p.getType()));
-                            // TODO: check parameter annotation -> throw exception
-                            // Service
-                            ;
-                            parameters.removeAll(
-                                    parameters.stream()
-                                            .filter(p -> p.isAnnotationPresent(Inject.class))
-                                            .filter(p -> values.containsKey(p.getAnnotation(Inject.class).value()))
-                                            .collect(Collectors.toList())
-                                    // "smsUrl", "pushUrl"
-                            );
-                            return parameters.isEmpty();
-                        }
-                )
-                .map(o -> {
-                    try {
-                        List<Object> params = Arrays.stream(o.getParameters())
-                                .map(p -> Optional.ofNullable(objects.get(p.getType()))
-                                        .or(() -> Optional.ofNullable(values.get(
-                                                // TODO: NPE
-                                                p.getAnnotation(Inject.class).value() // arg0
-                                        )))
-                                        .orElseThrow(() -> new UnmetDependenciesException(p.getName()))
-                                )
-                                .collect(Collectors.toList());
-                        o.setAccessible(true);
-                        return o.newInstance(params.toArray());
-                    } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-                        e.printStackTrace();
-                        throw new ObjectInstantiationException(e); // <- e //
-                    }
-                })
-                .collect(Collectors.toMap(o -> o.getClass(), o -> o));
-        objects.putAll(secondGeneration);
-        todo.removeAll(secondGeneration.keySet());
-        if (todo.size() == 0) {
-            return;
-        }
-
-        if (secondGeneration.size() == 0) {
-            // sad path
-            String unmet = todo.stream()
-                    .map(o -> o.getName())
-                    .collect(Collectors.joining(", "));
-            throw new UnmetDependenciesException(unmet);
-        }
-
-        final var thirdGeneration = todo.stream() // lazy
-                .map(o -> o.getDeclaredConstructors()[0])
-                .filter(o -> objects.keySet()
-                        .containsAll(Arrays.asList(o.getParameterTypes()))
-                )
-                .map(o -> {
-                    try {
-                        List<Object> params = Arrays.stream(o.getParameterTypes())
-                                .map(p -> objects.get(p))
-                                .collect(Collectors.toList());
-                        o.setAccessible(true);
-                        return o.newInstance(params.toArray());
-                    } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-                        e.printStackTrace();
-                        throw new ObjectInstantiationException(e); // <- e //
-                    }
-                })
-                .collect(Collectors.toMap(o -> o.getClass(), o -> o));
-        objects.putAll(thirdGeneration);
-        todo.removeAll(thirdGeneration.keySet());
-        if (todo.size() == 0) {
-            return;
-        }
-
-        // sad path
-        String unmet = todo.stream()
-                .map(o -> o.getName())
-                .collect(Collectors.joining(", "));
-        throw new UnmetDependenciesException(unmet);
     }
 
-    private boolean allParameterInValues(Constructor<?> constructor) {
-        final var parameters = new HashSet<>(Arrays.asList(constructor.getParameters()));
-        parameters.removeIf(p -> objects.containsKey(p.getType()));
-        // TODO: check parameter annotation -> throw exception
-        // Service
-        ;
-        parameters.removeAll(
-                parameters.stream()
-                        .filter(p -> p.isAnnotationPresent(Inject.class))
-                        .filter(p -> values.containsKey(p.getAnnotation(Inject.class).value()))
-                        .collect(Collectors.toList())
-                // "smsUrl", "pushUrl"
-        );
-        return parameters.isEmpty();
+    private boolean allParameterAlreadyInitializedOr0(Constructor<?> constructor) {
+        final Parameter[] parameters = constructor.getParameters();
+
+        if (parameters.length == 0) {
+            return true;
+        } else {
+            for (Parameter parameter :
+                    parameters) {
+
+                if (parameter.isAnnotationPresent(Inject.class)) {
+                    if (!values.containsKey(parameter.getAnnotation(Inject.class).value())) {
+                        return false;
+                    }
+                } else if (!objects.containsKey(parameter.getType())) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private Set<Object> fillConstructorParametersWithArguments(Constructor<?> constructor) {
+        Set<Object> filledConstructorParameters = new HashSet<>();
+
+        for (Parameter constructorParameter :
+                constructor.getParameters()) {
+            if (constructorParameter.isAnnotationPresent(Inject.class)) {
+                filledConstructorParameters.add(values.get(constructorParameter.getAnnotation(Inject.class).value()));
+            } else {
+                filledConstructorParameters.add(objects.get(constructorParameter.getType()));
+            }
+        }
+
+        return filledConstructorParameters;
+    }
+
+    private void fillObjectsMapWithClassAndInterfaces(Class<?> clz, Object instance) {
+        objects.put(clz, instance);
+        for (Class<?> iface :
+                clz.getInterfaces()) {
+            objects.put(iface, instance);
+        }
     }
 }
