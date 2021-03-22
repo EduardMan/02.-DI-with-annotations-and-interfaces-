@@ -40,16 +40,16 @@ public class Container {
         while (!todo.isEmpty()) {
             final int todoBeginStageSize = todo.size();
 
-            final Iterator<Class<?>> iterator = todo.iterator();
-            while (iterator.hasNext()) {
-                final Class<?> clz = iterator.next();
+            final Iterator<Class<?>> clzIterator = todo.iterator();
+            while (clzIterator.hasNext()) {
+                final Class<?> clz = clzIterator.next();
                 final Constructor<?> declaredConstructor = clz.getDeclaredConstructors()[0];
                 boolean allParameterAlreadyInitializedOr0 = allParameterAlreadyInitializedOr0(declaredConstructor);
 
                 if (allParameterAlreadyInitializedOr0) {
                     Set<Object> filledConstructorParameters = fillConstructorParametersWithArguments(declaredConstructor);
                     fillObjectsMapWithClassAndInterfaces(clz, declaredConstructor.newInstance(filledConstructorParameters.toArray()));
-                    iterator.remove();
+                    clzIterator.remove();
                 }
             }
 
