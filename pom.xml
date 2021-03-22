@@ -13,4 +13,11 @@
         <maven.compiler.target>15</maven.compiler.target>
     </properties>
 
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <url>https://mave.pkg.github.com/EduardMan/02.-DI-with-annotations-and-interfaces-</url>
+        </repository>
+    </distributionManagement>
+
 </project>
