@@ -44,9 +44,9 @@ public class Container {
             while (clzIterator.hasNext()) {
                 final Class<?> clz = clzIterator.next();
                 final Constructor<?> declaredConstructor = clz.getDeclaredConstructors()[0];
-                boolean allParameterAlreadyInitializedOr0 = allParameterAlreadyInitializedOr0(declaredConstructor);
+                boolean allArgumentsAlreadyInitializedOr0 = allArgumentsAlreadyInitializedOr0(declaredConstructor);
 
-                if (allParameterAlreadyInitializedOr0) {
+                if (allArgumentsAlreadyInitializedOr0) {
                     Set<Object> filledConstructorParameters = fillConstructorParametersWithArguments(declaredConstructor);
                     fillObjectsMapWithClassAndInterfaces(clz, declaredConstructor.newInstance(filledConstructorParameters.toArray()));
                     clzIterator.remove();
@@ -59,7 +59,7 @@ public class Container {
         }
     }
 
-    private boolean allParameterAlreadyInitializedOr0(Constructor<?> constructor) {
+    private boolean allArgumentsAlreadyInitializedOr0(Constructor<?> constructor) {
         final Parameter[] parameters = constructor.getParameters();
 
         if (parameters.length == 0) {
