@@ -64,19 +64,20 @@ public class Container {
 
         if (parameters.length == 0) {
             return true;
-        } else {
-            for (Parameter parameter :
-                    parameters) {
+        }
 
-                if (parameter.isAnnotationPresent(Inject.class)) {
-                    if (!values.containsKey(parameter.getAnnotation(Inject.class).value())) {
-                        return false;
-                    }
-                } else if (!objects.containsKey(parameter.getType())) {
-                    return false;
-                }
+        for (Parameter parameter :
+                parameters) {
+
+            if (parameter.isAnnotationPresent(Inject.class) && !values.containsKey(parameter.getAnnotation(Inject.class).value())) {
+                return false;
+            }
+
+            if (!parameter.isAnnotationPresent(Inject.class) && !objects.containsKey(parameter.getType())) {
+                return false;
             }
         }
+
         return true;
     }
 
