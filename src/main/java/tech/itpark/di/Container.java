@@ -32,7 +32,7 @@ public class Container {
     }
 
     public void wire() throws IllegalAccessException, InvocationTargetException, InstantiationException {
-        HashSet<Class<?>> todo = new HashSet<>(definitions);
+        Set<Class<?>> todo = new HashSet<>(definitions);
         if (todo.isEmpty()) {
             return;
         }
