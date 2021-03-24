@@ -38,12 +38,12 @@ public class Container {
         }
 
         while (!todo.isEmpty()) {
-            final int todoBeginStageSize = todo.size();
+            int todoBeginStageSize = todo.size();
 
-            final Iterator<Class<?>> clzIterator = todo.iterator();
+            Iterator<Class<?>> clzIterator = todo.iterator();
             while (clzIterator.hasNext()) {
-                final Class<?> clz = clzIterator.next();
-                final Constructor<?> declaredConstructor = clz.getDeclaredConstructors()[0];
+                Class<?> clz = clzIterator.next();
+                Constructor<?> declaredConstructor = clz.getDeclaredConstructors()[0];
                 boolean allArgumentsAlreadyInitializedOr0 = allArgumentsAlreadyInitializedOr0(declaredConstructor);
 
                 if (allArgumentsAlreadyInitializedOr0) {
@@ -60,7 +60,7 @@ public class Container {
     }
 
     private boolean allArgumentsAlreadyInitializedOr0(Constructor<?> constructor) {
-        final Parameter[] parameters = constructor.getParameters();
+        Parameter[] parameters = constructor.getParameters();
 
         if (parameters.length == 0) {
             return true;
